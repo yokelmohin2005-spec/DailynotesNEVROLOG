@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Дневник головной боли</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f7f7f5;--card:#fff;--tx:#1d1d1b;--mut:#6d6d68;--line:#dcdcd6;--empty:#ecece7;
+--r:#e5484d;--o:#f5902b;--y:#f2c230;--g:#3fb56b}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161616;--card:#202020;--tx:#eee;--mut:#9a9a94;--line:#363636;--empty:#2b2b2b}}
+:root[data-theme="dark"]{--bg:#161616;--card:#202020;--tx:#eee;--mut:#9a9a94;--line:#363636;--empty:#2b2b2b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.4}
+main{max-width:560px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+.nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.nav b{font-size:17px;text-transform:capitalize}
+button{font:inherit;color:inherit;background:var(--empty);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
+button.pri{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.wd{font-size:12px;color:var(--mut);text-align:center}
+.d{aspect-ratio:1;border-radius:10px;border:0;padding:0;background:var(--empty);font-size:14px;color:var(--mut);position:relative;display:flex;align-items:flex-start;justify-content:flex-start;padding:5px 6px}
+.d.r{background:var(--r);color:#fff}.d.o{background:var(--o);color:#fff}.d.y{background:var(--y);color:#3a2f00}.d.g{background:var(--g);color:#fff}
+.d.today{outline:2px solid var(--tx);outline-offset:1px}
+.d:disabled{opacity:.35;cursor:default}
+.d.n::after{content:"";position:absolute;right:6px;bottom:6px;width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.8}
+.leg{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:13px;color:var(--mut)}
+.leg i{display:inline-block;width:12px;height:12px;border-radius:4px;vertical-align:-1px;margin-right:5px}
+.tools{display:flex;gap:8px;flex-wrap:wrap}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-end;justify-content:center;z-index:5}
+.ov.on{display:flex}
+.sheet{background:var(--card);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));max-height:92%;overflow:auto}
+.sheet h2{font-size:18px;margin:0 0 12px}
+.lv{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.lv button{padding:12px 8px;border:2px solid transparent;color:#fff;font-weight:600}
+.lv button[data-l=r]{background:var(--r)}.lv button[data-l=o]{background:var(--o)}
+.lv button[data-l=y]{background:var(--y);color:#3a2f00}.lv button[data-l=g]{background:var(--g)}
+.lv button.sel{border-color:var(--tx);box-shadow:0 0 0 2px var(--card) inset}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+textarea,input[type=text]{width:100%;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px}
+textarea{min-height:110px;resize:vertical}
+.row{display:flex;gap:8px;margin-top:14px}.row .pri{flex:1}
+.small{font-size:12px;color:var(--mut);margin:8px 0 0}
+</style>
+</head>
+<body>
+<main>
+<h1>Дневник головной боли</h1>
+
+<div class="card">
+  <div class="nav"><button id="prev" aria-label="Предыдущий месяц">←</button><b id="mt"></b><button id="next" aria-label="Следующий месяц">→</button></div>
+  <div class="grid" id="wd"></div>
+  <div class="grid" id="g" style="margin-top:6px"></div>
+</div>
+
+<div class="card">
+  <div class="leg" id="leg"></div>
+  <p class="small">Точка в углу квадрата — значит есть заметка. Нажми на квадрат, чтобы отметить уровень боли и описать день.</p>
+</div>
+
+<div class="tools">
+  <button id="exp" class="pri">Текст для врача</button>
+</div>
+<p class="small">Данные хранятся только в этом браузере на этом устройстве. Если очистишь данные сайта — записи пропадут, поэтому иногда копируй «Текст для врача» в заметки.</p>
+</main>
+
+<div class="ov" id="ov"><div class="sheet" id="sh"></div></div>
+
+<script>
+var KEY="headache-diary-v1",LV={r:"Сильная боль",o:"Умеренная боль",y:"Фоновая боль",g:"Боли нет"};
+var mem={},store=null;
+try{store=window.localStorage}catch(e){}
+function load(){try{var s=store&&store.getItem(KEY);return s?JSON.parse(s):{}}catch(e){return mem}}
+function save(){try{store.setItem(KEY,JSON.stringify(data))}catch(e){mem=data}}
+var data=load();
+var now=new Date(),vy=now.getFullYear(),vm=now.getMonth();
+function key(y,m,d){return y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0")}
+var todayK=key(now.getFullYear(),now.getMonth(),now.getDate());
+function $(i){return document.getElementById(i)}
+function fmt(k){var p=k.split("-");return new Date(+p[0],+p[1]-1,+p[2]).toLocaleDateString("ru-RU",{day:"numeric",month:"long",weekday:"long"})}
+
+["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].forEach(function(w){var e=document.createElement("div");e.className="wd";e.textContent=w;$("wd").appendChild(e)});
+
+function render(){
+  var first=new Date(vy,vm,1),n=new Date(vy,vm+1,0).getDate(),off=(first.getDay()+6)%7,g=$("g"),c={r:0,o:0,y:0,g:0};
+  $("mt").textContent=first.toLocaleDateString("ru-RU",{month:"long",year:"numeric"});
+  g.innerHTML="";
+  for(var i=0;i<off;i++)g.appendChild(document.createElement("div"));
+  for(var d=1;d<=n;d++){
+    var k=key(vy,vm,d),e=data[k],b=document.createElement("button");
+    b.className="d"+(e&&e.l?" "+e.l:"")+(e&&(e.note||e.med)?" n":"")+(k===todayK?" today":"");
+    b.textContent=d;b.setAttribute("aria-label",fmt(k)+(e&&e.l?": "+LV[e.l]:""));
+    if(k>todayK)b.disabled=true;
+    if(e&&e.l)c[e.l]++;
+    b.onclick=(function(k){return function(){openDay(k)}})(k);
+    g.appendChild(b);
+  }
+  $("leg").innerHTML=["r","o","y","g"].map(function(l){return '<span><i style="background:var(--'+l+')"></i>'+LV[l]+": "+c[l]+"</span>"}).join("");
+}
+$("prev").onclick=function(){vm--;if(vm<0){vm=11;vy--}render()};
+$("next").onclick=function(){vm++;if(vm>11){vm=0;vy++}render()};
+
+function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;")}
+function openDay(k){
+  var e=data[k]||{},sel=e.l||"";
+  $("sh").innerHTML='<h2>'+fmt(k)+'</h2><div class="lv">'+["r","o","y","g"].map(function(l){return '<button data-l="'+l+'" class="'+(l===sel?"sel":"")+'">'+LV[l]+'</button>'}).join("")+
+  '</div><label for="med">Лекарства / что принимал(а)</label><input type="text" id="med" value="'+esc(e.med)+'">'+
+  '<label for="nt">Как прошёл день: где болит, как долго, что предшествовало, сон, еда, стресс</label><textarea id="nt">'+esc(e.note)+'</textarea>'+
+  '<div class="row"><button id="del">Очистить</button><button id="cl">Отмена</button><button id="sv" class="pri">Сохранить</button></div>';
+  $("ov").classList.add("on");
+  var btns=$("sh").querySelectorAll(".lv button");
+  btns.forEach(function(b){b.onclick=function(){sel=b.dataset.l;btns.forEach(function(x){x.classList.toggle("sel",x===b)})}});
+  $("cl").onclick=close;
+  $("del").onclick=function(){delete data[k];save();close();render()};
+  $("sv").onclick=function(){
+    var note=$("nt").value.trim(),med=$("med").value.trim();
+    if(!sel&&!note&&!med)delete data[k];else data[k]={l:sel,note:note,med:med};
+    save();close();render();
+  };
+}
+function close(){$("ov").classList.remove("on")}
+$("ov").onclick=function(ev){if(ev.target===$("ov"))close()};
+
+$("exp").onclick=function(){
+  var ks=Object.keys(data).sort(),out=["Дневник головной боли",""];
+  if(!ks.length)out.push("Записей пока нет.");
+  ks.forEach(function(k){var e=data[k],p=k.split("-");
+    out.push(p[2]+"."+p[1]+"."+p[0]+" — "+(e.l?LV[e.l]:"уровень не указан")+(e.med?"; принимал(а): "+e.med:"")+(e.note?"\n  "+e.note:""))});
+  var txt=out.join("\n");
+  $("sh").innerHTML='<h2>Текст для врача</h2><textarea id="tx" style="min-height:260px" readonly>'+esc(txt)+'</textarea><div class="row"><button id="cl">Закрыть</button><button id="cp" class="pri">Скопировать</button></div>';
+  $("ov").classList.add("on");
+  $("cl").onclick=close;
+  $("cp").onclick=function(){
+    var t=$("tx");t.select();
+    try{navigator.clipboard.writeText(txt).then(function(){$("cp").textContent="Скопировано"},function(){document.execCommand("copy")})}catch(e){try{document.execCommand("copy")}catch(_){}}
+  };
+};
+render();
+</script>
+</body>
+</html>
